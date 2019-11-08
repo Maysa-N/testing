@@ -1,0 +1,269 @@
+## Part C – Adapting content from this course and your own independent learning to create new research (30 marks)
+
+I am using the question below, which was an example question provided: 
+
+Do sister species live in the same geographic region or different geographic regions? Geographic phylogenetic patterns may yield insights into the role of allopatric speciation in the evolutionary history of a taxonomic group. To address this question, I will build a phylogenetic tree, a geographic map of the clades of interest, and compare the phylogeny with the map. 
+
+My species of interest is Daphnia. I will be using the species found from the phylogenetic hypothesis in Part B. I will use BOLD to find geographical information about this species and run another alignment based on the BOLD data. Finally, I will map this data. This approach can give insights about whether these species may have diverged due to geographic isolation or changes, which is important in understanding the evolutionary biodiversity of species.
+
+This question is interesting to me because allopatric speciation can drive geographic isolation, leading to evolution of species. This can lead to genetic differences between species that have diverged geographical such that they would not be able to breed if they were reintroduced. Furthermore, I want to learn more about using maps in R, especially for visualization.
+
+
+```{r Load all Libraries, message=FALSE}
+library(tidyverse)
+library(ape)
+library(phytools)
+library(phylogram)
+library(plotrix)
+library(Biostrings)
+library(rgbif)
+```
+
+
+```{r Phylogenetic hypothesis}
+# I am using the phylogeny for the genus Daphnia that I created in Part B for my starting point. This means that I am using one sequence per OTU. 
+# Because I knew I was going to do this, I wrote the dataframe that was created for my phylogenetic hypothesis to my hard disk and  I will now read it in. 
+Daphnia <- read.csv("Daphnia16S_RandomSeq_OTU.csv")
+
+# Check to make sure the right data was read in 
+class(Daphnia)
+names(Daphnia)
+dim(Daphnia)
+unique(Daphnia$Gene_Name)
+unique(Daphnia$cluster)
+
+# Convert data into a useable format for the analysis.
+Daphnia$Daphnia_Sequence <- DNAStringSet(Daphnia$Daphnia_Sequence)
+class(Daphnia$Daphnia_Sequence)
+
+# Preform an alignment based on the data. 
+Daphnia.alignment <- DNAStringSet(muscle::muscle(Daphnia$Daphnia_Sequence, log = "log.tx", verbose = T))
+dnaBin.Daphnia.alignment <- as.DNAbin(Daphnia.alignment)
+
+# Get distance matrix
+distanceMatrix.Daphnia <- dist.dna(dnaBin.Daphnia.alignment, model = "TN93", as.matrix = TRUE, pairwise.deletion = TRUE)
+
+# I am using neighbour joining for the method of my phylogenetic reconstruction. 
+# This is a distance phylogenetic reconstruction method. 
+DaphniaPhylo <- nj(distanceMatrix.Daphnia)
+
+plot(DaphniaPhylo)
+
+# I really wanted to try the "roundPhylogram" function, just to see if this improves the interpretability. 
+roundPhylogram(DaphniaPhylo)
+
+# Now clean up my global environment 
+rm(Daphnia.alignment)
+rm(dnaBin.Daphnia.alignment)
+```
+
+```{r Seeking out data}
+# I am interested in geographic data from BOLD 
+# Use BOLD API to get information about Daphnia
+# This search was done on Thursday October 31, 2019
+boldDaphnia <- read_tsv("http://www.boldsystems.org/index.php/API_Public/combined?taxon=Daphnia&format=tsv")
+```
+
+```{r Data checking}
+# Preform some checks to see what we got 
+class(boldDaphnia)
+names(boldDaphnia)
+
+# I want to remove some of the columns to make a dataframe that is easier to work with.
+# I am creating an new dataframe based on the column numbers that I am interested in. 
+boldDaphniaSubset <- boldDaphnia[c(8, 21, 22, 47, 48, 55, 57, 69, 70, 72)]
+
+# Checking to make sure that worked.
+names(boldDaphniaSubset)
+
+# What geographic information do I have? 
+unique(boldDaphnia$region)
+unique(boldDaphnia$country)
+
+# I know that I will need the GPS coordinates further downstream.
+hist(boldDaphniaSubset$lat)
+hist(boldDaphniaSubset$lon)
+
+# Is there any missing data? Checking for NAs.
+sum(is.na(boldDaphniaSubset$lat))
+sum(is.na(boldDaphniaSubset$lon))
+
+# Remove the NAs 
+boldDaphniaSubset <- boldDaphniaSubset %>% 
+  filter(!is.na(lat)) %>% 
+  filter(!is.na(lon))
+
+# Check to make sure that the above worked! 
+sum(is.na(boldDaphniaSubset$lat))
+sum(is.na(boldDaphniaSubset$lon))
+
+# Species that are represented in the sample 
+unique(boldDaphniaSubset$species_name)
+
+# Looks like we have missing data again. Again, remove NAs 
+boldDaphniaSubset <- boldDaphniaSubset %>% 
+  filter(!is.na(species_name))
+
+# Check to make sure that the above worked. 
+sum(is.na(boldDaphniaSubset$species_name))
+unique(boldDaphniaSubset$species_name)
+
+# What about nucleotides? 
+sum(is.na(boldDaphniaSubset$nucleotides))
+boldDaphniaSubset <- boldDaphniaSubset %>% 
+  filter(!is.na(nucleotides))
+sum(is.na(boldDaphniaSubset$nucleotides))
+
+```
+
+```{r Prep species data}
+# We are only interested in the species that were in the species alignment. 
+# Subset the data based on the species that we are interested in (species that were present in the phylogeny from part B)
+speciesOfInterest <- data.frame(unique(Daphnia$Species_Name))
+unique(speciesOfInterest)
+
+# Rename the name of the column 
+speciesOfInterest$species_name <- speciesOfInterest$unique.Daphnia.Species_Name.
+speciesOfInterest$species_name
+
+# Retrieve data that share common species between the dataframe from BOLD and our other dataframe
+species <- merge(boldDaphniaSubset, speciesOfInterest, by = "species_name", all = F)
+
+# Check to make sure that worked 
+species$species_name
+unique(species$species_name)
+
+# Clean up global env
+rm(speciesOfInterest)
+```
+
+```{r GPS data}
+# Because I need the GPS coordinates, I am now going to use the lat and lon in the dataframe to do so. Here, I am just going to look into what I have 
+GPSspecies <-species %>% 
+  select(species_name, lat, lon)
+
+dim(GPSspecies)
+names(GPSspecies)
+head(GPSspecies)
+
+# Do some data checking 
+hist(GPSspecies$lat)
+hist(GPSspecies$lon)
+
+# Find some more info about the data
+GPSspecies %>% 
+  group_by(species_name) %>% 
+  summarise(mean(lat), mean(lon), min(lat), min (lon), max(lat), max(lon))
+
+# Clean up the environment
+rm(GPSspecies)
+```
+
+```{r Prep tree data for plotting}
+
+# Create an alignment for the data that we have GPS data for 
+# Convert data into a useable foramt for the analysis.
+species$nucleotides <- DNAStringSet(species$nucleotides)
+class(species$nucleotides)
+
+# Preform an alignment based on the data. 
+tree.alignment <- DNAStringSet(muscle::muscle(species$nucleotides, log = "log.tx", verbose = T))
+DNAbin.tree.alignment <- as.DNAbin(tree.alignment)
+
+# Get distance matrix
+distanceMatrix.tree <- dist.dna(DNAbin.tree.alignment, model = "TN93", as.matrix = TRUE, pairwise.deletion = TRUE)
+
+# I am using neighbour joining for the method of my phylogenetic reconstruction. 
+# This is a distance phylogenetic reconstruction method. 
+treePhylo <- nj(distanceMatrix.tree)
+plot(treePhylo)
+
+# This is way too difficult to interpret and look at. I am going to randomly sample one of each of my species of interest, realign and create a dendrogram from that.
+
+randomSubsetDaphnia <- species %>% 
+  group_by(species_name) %>%
+  sample_n(size = 1) 
+
+# Check out what the above did
+randomSubsetDaphnia
+
+# I want to do some string handling and replace the 'Daphnia's with 'D.'
+randomSubsetDaphnia$species_name <- str_replace_all(randomSubsetDaphnia$species_name, "Daphnia", "D.")
+randomSubsetDaphnia$species_name <- str_replace_all(randomSubsetDaphnia$species_name, "\\s+","")
+randomSubsetDaphnia$species_name
+
+# Redo the alignment 
+tree.alignment <- DNAStringSet(muscle::muscle(randomSubsetDaphnia$nucleotides, log = "log.tx", verbose = T))
+DNAbin.tree.alignment <- as.DNAbin(tree.alignment)
+
+# Calculate the distance matrix of the alignment
+distanceMatrix.tree <- dist.dna(DNAbin.tree.alignment, model = "TN93", as.matrix = TRUE, pairwise.deletion = TRUE)
+
+# Use neighbour joining to reconstruct the phylogeny
+treePhylo <- nj(distanceMatrix.tree)
+plot(treePhylo)
+
+# What a relief! That plot looks much better.
+
+# Now we want to rename the labels based on the names of the species 
+treePhylo$tip.label <- as.character(randomSubsetDaphnia$species_name)
+treePhylo$tip.label
+plotTree(treePhylo,ftype="i")
+
+# The tree needs to be rooted for the geophylogeny to work
+treePhylo <- root(treePhylo,1,resolve.root = TRUE)
+plotTree(treePhylo)
+is.rooted(treePhylo)
+```
+
+```{r Create a geophylogeny}
+
+# I am going to redo the GPS data to have only the lat and lon of the species that were used to create the phylogeny
+
+# I am only interested in the lat and long so I will create a subset based on this data 
+GPSdata <- randomSubsetDaphnia[c(4,5)]
+
+# Do some checking to make sure things are in order 
+class(treePhylo)
+class(GPSdata)
+dim(GPSdata)
+
+# The row names and column names must be consistent with the tip labels used to create the original phylogeny
+treePhylo$tip.label
+row.names(GPSdata) <- c("D.galeata", "D.magna", "D.parvula", "D.pulex", "D.similis", "D.sp.")
+colnames(GPSdata) <- c("lat", "long")
+
+# The GPS data must be in a matrix 
+GPSMat <- as.matrix(GPSdata)
+
+# Check to make sure that worked 
+GPSMat
+# Do some more checking 
+class(GPSMat)
+GPSMat
+treePhylo
+
+all.equal(treePhylo$tip.label, rownames(GPSMat))
+
+# Map the phylogeny using the "phylo.to.map" function
+obj <- phylo.to.map(treePhylo, GPSMat, type = "direct", rotate=FALSE)
+
+# I want the phylogeny, not the direct map
+
+# Make colours for each point on the map
+cols<-setNames(sample(rainbow(n=Ntip(treePhylo))),treePhylo$tip.label)
+# Create object based on phylogeny and GPS coordinates
+obj <- phylo.to.map(treePhylo, coords=GPSMat, rotate=FALSE)
+plot(obj, colors=cols,ftype="i",cex.points=c(0.7,1.2))
+
+# Try to make it even prettier
+# Here, I rotated the plot and made the font type 'b' for bold.
+plot(obj,direction="rightwards",colors=cols,ftype="b",cex.points=c(0.7,1.5))
+
+# Dang! Beautiful!
+```
+
+The geophylogeny gives some interesting insight into the allopatric speciation of the sister species in Daphnia. D._galeata_ which is separated from D._magna_ and D._pulex_ through 3 speciation events, is located furthest away from these species. Similarly, according to the phylogeny, D._galeata_ is more closely related to D._similis_ and is geographically close to this sister species compared to D._parvula_, D._magna_ and D._pulex_. Unsurprisingly, sister species D._magna_ and D._pulex_, which are in the same clade, also are from the same region on the map (pointing to the same point). However, D._sp_. is more geographically close to D._magna_ and D._pulex_, which is suprising considering it's position on the phylogeny. 
+From these conclusions, there is some evidence suggesting that geographic location appears to correlate with the speciation of the Daphnia species presented in this analysis. While ecosystems, biotic and abiotic factors can drive evolutionary speciation, there are many drivers of clade diversification which are not present in this analysis. The analysis also includes only a small sample and should be expanded for better insights to be drawn. This analysis does represent a pilot study which could give motivation and evidence that a more in-depth analysis should be done in the future.
+
+There are many statistical tests that could be used to extend this analysis. However, to extend this mini project, testing the phylogenetic hypothesis would be useful. I used species that were related in part B's phylogenetic hypothesis to create a new phylogenetic hypothesis using BOLD data. While this was ok in the scope of this assignment, I should have compared the two phylogenies before proceeding. The null hypothesis for comparing two trees would be that the two trees are equal. To test this hypothesis, the cophenetic correlation of the two phylogenies could be calculated.
