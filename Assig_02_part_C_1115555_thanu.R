@@ -66,7 +66,22 @@
       #for a nice and easy visualization use plot histogram on nucleotide lengths. rename the x axis as nucleotide lengths and the title of the histogram in the argument "main".
       hist(str_length(Champia_COI5P$nucleotides),col="violet",xlab = "COI-5P nucleotide length",main = "Histogram of COI-5P nucleotide length")
           hist(str_length(Champia_rbcL$nucleotides),col="cyan",xlab = "rbcL nucleotide length",main = "Histogram of  rbcL nucleotide length")
-        #According to the lengths of nucleotides there are no unusual data, therefore can proceed with this data set for the next steps
+# first edit
+# instead of check the length and then use the histogram to check unusual length we can determine the length that we need for both genes:
+table(str_length(Champia_COI5P$nucleotides))
+seq_length <- Champia_COI5P %>%
+  filter(str_length(nucleotides) > 600)
+# for rbcl gene:
+table(str_length(Champia_rbcL$nucleotides))
+seq_length2 <- Champia_rbcL %>%
+  filter(str_length(nucleotides) > 1300)
+# Now we are sure that we have length in the range we need.)
+# second edid :
+ggplot give better view:
+ggplot(data = Champia_COI5P, aes (x = str_length(Champia_COI5P$nucleotides))) + geom_histogram(color = "black", fill = "blue", binwidth = 10) + labs(x= "COI-5P nucleotide length", y = "count", title = "Histogram of COI-5P nucleotide length")
+ggplot(data = Champia_rbcL, aes (x = str_length(Champia_rbcL$nucleotides))) + geom_histogram(color = "green", fill = "red", binwidth = 30) + labs(x= "rbcl nucleotide length", y = "count", title = "Histogram of rbcl nucleotide length")
+        
+#According to the lengths of nucleotides there are no unusual data, therefore can proceed with this data set for the next steps
       #Combining the rows that appear in either or both Champia_COI5P and Champia_rbcL to get the count of COI5P and rbcL markers according to the country#This will use when plotting country wise gene count on the selected two markers
       dfAll_COI_rbcL <- union(Champia_COI5P,Champia_rbcL)
       #map the records for COI-5P and rbcL gene of Champia for better visualization. The data set was set in the argument data. aes means aesthetic mappings that describe how variables in the data are mapped to visual properties of geoms. stat gives the count of records. The function labs used for labels (to display the title, x axis and y axis). Flip cartesian coordinates using coord_flip, so that vertical bars becomes horizontal.
@@ -163,7 +178,13 @@
       #MUSCLE is more theoretically reliable.It looks better for translations. It is significantly faster than the other methods  even for large dataset. Also MUSCLE, has several different alignement algorithms to choose from (for different types of data) and has many useful extra options to work with alignments#To find out what default settings are being used for all the arguments, a log file can be written to disk using the log argument in conjunction with the verbose argument, log = "log.txt", verbose =T. This will write out the default values to the file log.txt in the current working directory of R. (verbose =T generates outputs).
       Alignment_Champia_COI5P_1 <- DNAStringSet(muscle::muscle(dfChampia_COI5P_Subset$nucleotides , log = "log.tx", verbose = T))
       Alignment_Champia_rbcL_1 <- DNAStringSet(muscle::muscle(dfChampia_rbcL_Subset$nucleotides , log = "log.tx", verbose = T))
-      #BrowseSeqs function in DECIPHER package opens an html file in a web browser to show the sequences in a DNAStringSet.#BrowseSeqs converts the DNAStringSet into html format for viewing in a web browser. The sequences are colored and easy to recognize sequences with unusual nucleotides.
+ # third edit:
+for better veiw we can replace the jenus name Champia with C. because all of the species have the same genus name       
+names(Alignment_Champia_COI5P_1) <- gsub('Champia', "C.", names(Alignment_Champia_COI5P_1))
+names(Alignment_Champia_rbcL_1) <- gsub("Champia", "C.", names(Alignment_Champia_rbcL_1))
+# attached is the new dendrogram with the small species name.)      
+           
+#BrowseSeqs function in DECIPHER package opens an html file in a web browser to show the sequences in a DNAStringSet.#BrowseSeqs converts the DNAStringSet into html format for viewing in a web browser. The sequences are colored and easy to recognize sequences with unusual nucleotides.
       BrowseSeqs(Alignment_Champia_COI5P_1)
         BrowseSeqs(Alignment_Champia_rbcL_1)
         #Check the number of gaps across all sequences in the alignment to see if there's any unusual count. The str_count argument for the function lapply, placed after a comma, within the arguments to be passed to lapply.
